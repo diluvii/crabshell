@@ -1,29 +1,71 @@
-use std::io::{self, Write};
+use std::{
+    io::{self, Write},
+    path::Path,
+    process::Command,
+    env
+};
 
 fn main() {
     loop {
         print!(">> ");
         io::stdout().flush().unwrap();
 
+        // get user input
         let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
+        match io::stdin().read_line(&mut input) {
+            Ok(_) => {
+                let input = input.trim();
+                if input.is_empty() {
+                    continue;
+                }
 
-        let parts: Vec<String> = input.trim().split_whitespace().map(|s| s.to_string()).collect();
-        exec(parts);
+                // parse command
+                match parse_line(input) {
+                    false => return,
+                    _ => continue
+                }
+            }
+            Err(e) => {
+                eprintln!("Error reading input: {}", e);
+                break;
+            }
+        }
     }
 }
 
-fn exec(parts: Vec<String>) {
-    if parts.is_empty() {
-        println!("oh no! no command :(");
-        return;
-    }
+fn parse_line(input: &str) -> bool {
+    let mut parts = input.split_whitespace();
+    let command = parts.next().unwrap();
+    let args: Vec<&str> = parts.collect();
 
-    let cmd = &parts[0];
-    let args = &parts[1..];
-
-    println!("Command: {}", cmd);
-    for arg in args {
-        println!("Arg: {}", arg);
+    // handle built-in commands
+    match command {
+        "cd" => {
+            // go to root if no args
+            let new_dir = args.first().unwrap_or(&"/");
+            let root = Path::new(new_dir);
+            if let Err(e) = env::set_current_dir(root) {
+                eprintln!("cd: {}", e);
+            }
+        }
+        "exit" => {
+            println!("Goodbye!");
+            return false;
+        }
+        // now we handle external commands
+        command => {
+            let mut cmd = match Command::new(command).args(args).spawn() {
+                Ok(cmd) => cmd,
+                Err(e) => {
+                    eprintln!("Command not found '{}': {}", command, e);
+                    return true;
+                }
+            };
+            
+            if let Err(e) = cmd.wait() {
+                eprintln!("Failed to spawn command: {}", e);
+            }
+        }
     }
+    return true;
 }
