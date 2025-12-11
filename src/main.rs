@@ -1,5 +1,5 @@
-use std::{
-    io::{self, Write},
+use std:: {
+    io::{stdin, stdout, Write},
     path::Path,
     process::Command,
     env
@@ -7,63 +7,55 @@ use std::{
 
 fn main() {
     loop {
-        print!(">> ");
-        io::stdout().flush().unwrap();
-
         // get user input
+        print!(">> ");
+        stdout().flush().unwrap();
         let mut input = String::new();
-        match io::stdin().read_line(&mut input) {
-            Ok(_) => {
-                let input = input.trim();
-                if input.is_empty() {
-                    continue;
-                }
+        stdin().read_line(&mut input)
+            .expect("failed to read line");
 
-                // parse command
-                match parse_line(input) {
-                    false => return,
-                    _ => continue
-                }
-            }
-            Err(e) => {
-                eprintln!("Error reading input: {}", e);
-                break;
-            }
+        // parse
+        if input.is_empty() {
+            continue;
+        }
+        match parse_line(&input) {
+            false => return,
+            true => continue
         }
     }
 }
 
 fn parse_line(input: &str) -> bool {
-    let mut parts = input.split_whitespace();
-    let command = parts.next().unwrap();
-    let args: Vec<&str> = parts.collect();
+    let mut args = input.trim().split_whitespace();
+    let command = args.next().unwrap();
+    let args: Vec<&str> = args.collect();
 
-    // handle built-in commands
+    // execute commands
     match command {
         "cd" => {
-            // go to root if no args
             let new_dir = args.first().unwrap_or(&"/");
             let root = Path::new(new_dir);
             if let Err(e) = env::set_current_dir(root) {
-                eprintln!("cd: {}", e);
+                eprintln!("error changing directory: {}", e);
             }
-        }
+        },
         "exit" => {
-            println!("Goodbye!");
+            println!("🦀🦀🦀 goodbye 🦀🦀🦀");
             return false;
-        }
-        // now we handle external commands
+        },
+
+        // external commands
         command => {
-            let mut cmd = match Command::new(command).args(args).spawn() {
-                Ok(cmd) => cmd,
+            let mut child = match Command::new(command).args(args).spawn() {
+                Ok(c) => c,
                 Err(e) => {
-                    eprintln!("Command not found '{}': {}", command, e);
+                    eprintln!("command '{}' not found: {}", command, e);
                     return true;
                 }
             };
-            
-            if let Err(e) = cmd.wait() {
-                eprintln!("Failed to spawn command: {}", e);
+
+            if let Err(e) = child.wait() {
+                eprintln!("command terminated with error code: {}", e);
             }
         }
     }
